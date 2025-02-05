@@ -1,0 +1,81 @@
+[gd_scene load_steps=2 format=3 uid="uid://br1myu1lwo64c"]
+
+[sub_resource type="GDScript" id="GDScript_hqaf5"]
+script/source = "extends Node
+
+Global ResWidth% = 910
+Global ResHeight% = 660
+Global versionnumber$ = \"2.1\"
+
+Global MainHwnd = GetActiveWindow()#User32.dll
+
+Global FileLocation$ = \"../Data/rooms.ini\"
+
+Global listbox = CreateListBox(5,60,ResWidth/4,ResHeight/2-20, winhandle)
+
+Global room_desc = CreateLabel(\"Room description:\",5,40+ResHeight/2,ResWidth/4,ResHeight/11.8,WinHandle,3)
+
+Global grid_room_info = CreateLabel(\"\",5,200+Resheight/2,ResWidth/4,ResHeight/11.6,WinHandle,3) #95
+
+
+Global ChangeGridGadget% = False
+Global GridGadgetText$ = \"\"
+
+Global event_desc = CreateLabel(\"\",5,117+ResHeight/2,ResWidth/4,ResHeight/12.0,WinHandle,3) #170	ResHeight/11.8
+
+Global event_prob = CreateSlider(6,185+ResHeight/2,ResWidth/4-2,ResHeight/38.0,WinHandle,1)
+
+Global event_prob_label = CreateLabel(\"\",5,170+ResHeight/2,ResWidth/4,ResHeight/38.0,WinHandle,3)
+
+Global combobox = CreateComboBox(5, 95+ResHeight/2, ResWidth/4,ResHeight-ResHeight/1.39, winhandle) #150
+
+Global ShowGrid% = True
+
+Global Grid_SelectedX: float=-1.0, Grid_SelectedY: float=-1.0
+Global CurrMapGrid% = 0
+
+Global PlusIcon
+
+Global redfog = GetINIInt(\"options.INI\",\"3d scene\",\"bg color R\")
+Global greenfog = GetINIInt(\"options.INI\",\"3d scene\",\"bg color G\")
+Global bluefog = GetINIInt(\"options.INI\",\"3d scene\",\"bg color B\")
+
+Global redcursor = GetINIInt(\"options.INI\",\"3d scene\",\"cursor color R\")
+Global greencursor = GetINIInt(\"options.INI\",\"3d scene\",\"cursor color G\")
+Global bluecursor = GetINIInt(\"options.INI\",\"3d scene\",\"cursor color B\")
+
+Global camerarange = CreateTextField(25, 150, 40, 20, optionwin)
+
+Global vsync = CreateButton(\"Vsync\", 123, 145, 50, 30, optionwin, 2)
+Global showfps = CreateButton(\"Show FPS\", 210, 145, 70, 30, optionwin, 2)
+Global zonetrans1 = CreateTextField(20,40,80,20,map_settings)
+
+Global zonetrans2 = CreateTextField(130,40,80,20,map_settings)
+Global zonetransvalue1 = 13, zonetransvalue2 = 7
+Global MapAuthor$ = \"\", MapDescription$ = \"\"
+Global map_author_text = CreateTextField(120,30,140,20,authordescr_settings)
+Global descr_text = CreateTextArea(20,80,350,80,authordescr_settings,1)
+
+Global MouseHit1,MouseHit2,MouseDown1
+
+Global RoomTempID%
+
+Global adjdoor_place = CreateMenu(\"Place adjacent doors in 3D view\",16,options)
+
+
+Dim MapIcons(5,4)
+Dim ForestIcons(5,4)
+Dim SpecialIcons(2,4)
+Dim Map.RoomTemplates(MapWidth, MapHeight)
+Dim MapAngle%(MapWidth, MapHeight)
+Dim MapEvent$(MapWidth, MapHeight)
+Dim MapEventProb: float(MapWidth, MapHeight)
+Dim ForestPlace.RoomTemplates(ForestGridSize, ForestGridSize)
+Dim ForestPlaceAngle%(ForestGridSize, ForestGridSize)
+Dim MTRoom.RoomTemplates(MT_GridSize, MT_GridSize)
+Dim MTRoomAngle%(MT_GridSize, MT_GridSize)
+Dim Arrows(4)
+"
+
+[node name="Globals" type="Node"]
+script = SubResource("GDScript_hqaf5")
