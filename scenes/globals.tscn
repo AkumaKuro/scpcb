@@ -75,6 +75,15 @@ Dim ForestPlaceAngle%(ForestGridSize, ForestGridSize)
 Dim MTRoom.RoomTemplates(MT_GridSize, MT_GridSize)
 Dim MTRoomAngle%(MT_GridSize, MT_GridSize)
 Dim Arrows(4)
+
+
+Global AATextEnable% = GetINIInt(OptionFile, \"options\", \"antialiased text\")
+Global AASelectedFont%
+Global AATextCam%,AATextSprite%[150]
+Global AACharW%,AACharH%
+Global AATextEnable_Prev% = AATextEnable
+
+Global AACamViewW%,AACamViewH%
 "
 
 [node name="Globals" type="Node"]
