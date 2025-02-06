@@ -95,6 +95,8 @@ Global AchievementsMenu%
 Global AchvMSGenabled% = GetINIInt(\"options.ini\", \"options\", \"achievement popup enabled\")
 Global AchvLocked = LoadImage_Strict(\"GFX/menu/achievements/achvlocked.jpg\")
 Global CurrAchvMSGID% = 0
+
+Global ParticleCam, ParticlePiv
 "
 
 [node name="Globals" type="Node"]
