@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dfu3jnu2cp07w"
+path="res://.godot/imported/ventilation.ogg-08f5a4d17111821c70bfce29df3cb204.oggvorbisstr"
+
+[deps]
+
+source_file="res://SFX/Ambient/Room ambience/ventilation.ogg"
+dest_files=["res://.godot/imported/ventilation.ogg-08f5a4d17111821c70bfce29df3cb204.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://c1kigjmcqymbq"
+path="res://.godot/imported/FanOff.ogg-90839b7c1a1e33cf320186e2a694866b.oggvorbisstr"
+
+[deps]
+
+source_file="res://SFX/Ambient/Room ambience/FanOff.ogg"
+dest_files=["res://.godot/imported/FanOff.ogg-90839b7c1a1e33cf320186e2a694866b.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

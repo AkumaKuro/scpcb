@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://cgvubw8qg2ago"
+path="res://.godot/imported/rumble.ogg-ff5a01fd2de15c30496be613ac02081e.oggvorbisstr"
+
+[deps]
+
+source_file="res://SFX/Ambient/Room ambience/rumble.ogg"
+dest_files=["res://.godot/imported/rumble.ogg-ff5a01fd2de15c30496be613ac02081e.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4
