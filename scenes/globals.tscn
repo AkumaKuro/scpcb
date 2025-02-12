@@ -1,0 +1,16 @@
+[gd_scene load_steps=2 format=3 uid="uid://dmqmumpnkj5ma"]
+
+[sub_resource type="GDScript" id="GDScript_hqaf5"]
+script/source = "extends Node
+
+Global AATextEnable% = GetINIInt(OptionFile, \"options\", \"antialiased text\")
+Global AASelectedFont%
+Global AATextCam%,AATextSprite%[150]
+Global AACharW%,AACharH%
+Global AATextEnable_Prev% = AATextEnable
+
+Global AACamViewW%,AACamViewH%
+"
+
+[node name="Globals" type="Node"]
+script = SubResource("GDScript_hqaf5")
