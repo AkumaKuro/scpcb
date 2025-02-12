@@ -10,6 +10,20 @@ Global AACharW%,AACharH%
 Global AATextEnable_Prev% = AATextEnable
 
 Global AACamViewW%,AACamViewH%
+
+Dim Achievements%(MAXACHIEVEMENTS)
+
+Global UsedConsole
+
+Global AchievementsMenu%
+Global AchvMSGenabled% = GetINIInt(\"options.ini\", \"options\", \"achievement popup enabled\")
+Dim AchievementStrings$(MAXACHIEVEMENTS)
+Dim AchievementDescs$(MAXACHIEVEMENTS)
+Dim AchvIMG%(MAXACHIEVEMENTS)
+
+Global AchvLocked = LoadImage_Strict(\"GFX/menu/achievements/achvlocked.jpg\")
+
+Global CurrAchvMSGID% = 0
 "
 
 [node name="Globals" type="Node"]
