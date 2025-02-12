@@ -2,46 +2,45 @@ extends Node
 
 const MAXACHIEVEMENTS: int = 37
 
-const Achv008: int = 0
-const Achv012: int = 1
-const Achv035: int = 2
-const Achv049: int = 3
-const Achv055: int = 4
-const Achv079: int = 5
-const Achv096: int = 6
-const Achv106: int = 7
-const Achv148: int = 8
-const Achv205: int = 9
-const Achv294: int = 10
-const Achv372: int = 11
-const Achv420: int = 12
-const Achv427: int = 13
-const Achv500: int = 14
-const Achv513: int = 15
-const Achv714: int = 16
-const Achv789: int = 17
-const Achv860: int = 18
-const Achv895: int = 19
-const Achv914: int = 20
-const Achv939: int = 21
-const Achv966: int = 22
-const Achv970: int = 23
-const Achv1025: int = 24
-const Achv1048: int = 25
-const Achv1123: int = 26
-
-const AchvMaynard: int = 27
-const AchvHarp: int = 28
-const AchvSNAV: int = 29
-const AchvOmni: int = 30
-const AchvConsole: int = 31
-const AchvTesla: int = 32
-const AchvPD: int = 33
-
-const Achv1162: int = 34
-const Achv1499: int = 35
-
-const AchvKeter: int = 36
+enum Achievement {
+	Achv008,
+	Achv012,
+	Achv035,
+	Achv049,
+	Achv055,
+	Achv079,
+	Achv096,
+	Achv106,
+	Achv148,
+	Achv205,
+	Achv294,
+	Achv372,
+	Achv420,
+	Achv427,
+	Achv500,
+	Achv513,
+	Achv714,
+	Achv789,
+	Achv860,
+	Achv895,
+	Achv914,
+	Achv939,
+	Achv966,
+	Achv970,
+	Achv1025,
+	Achv1048,
+	Achv1123,
+	AchvMaynard,
+	AchvHarp,
+	AchvSNAV,
+	AchvOmni,
+	AchvConsole,
+	AchvTesla,
+	AchvPD,
+	Achv1162,
+	Achv1499,
+	AchvKeter
+}
 
 func _ready() -> void:
 	for i: int in range(MAXACHIEVEMENTS):
@@ -56,7 +55,7 @@ func _ready() -> void:
 
 	AchvLocked = ResizeImage2(AchvLocked,ImageWidth(AchvLocked)*GraphicHeight/768.0,ImageHeight(AchvLocked)*GraphicHeight/768.0)
 
-func GiveAchievement(achvname: int, showMessage: int=True) -> void:
+func GiveAchievement(achvname: int, showMessage: bool=true) -> void:
 	if !Achievements[achvname]:
 		Achievements[achvname]=True
 		if AchvMSGenabled and showMessage:
