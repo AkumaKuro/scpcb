@@ -10,7 +10,26 @@ enum TokenType {
 	Identifier,
 	StringLiteral,
 	NumericValue,
-	Symbol
+	Symbol,
+	For,
+	Function,
+	While,
+	If,
+	Elif,
+	Else,
+	EndIf,
+	NewLine,
+	Operator,
+	Then,
+	Null,
+	Local,
+	Select,
+	OpenParenthesis,
+	CloseParenthesis,
+	Type,
+	Typer,
+	Pointer,
+	Comma
 }
 
 func _run() -> void:
@@ -36,7 +55,7 @@ func _run() -> void:
 			step_back(file)
 			token_stream.append(current_token)
 
-		elif chr in '$%.#,\n=+-*/\\':
+		elif chr in '$%.#,\n=+-*)/\\(':
 			current_token = Token.new()
 			current_token.type = TokenType.Symbol
 			current_token.value = chr
@@ -49,11 +68,59 @@ func _run() -> void:
 		elif chr.to_lower() in 'abcdefghijklmnopqrstuvwxyz':
 			step_back(file)
 			current_token = get_identifier(file)
+			step_back(file)
 			token_stream.append(current_token)
 
 		chr = get_char(file)
-
+	scan_keywords()
 	print(token_stream)
+
+func scan_keywords() -> void:
+	for token: Token in token_stream:
+		if token.type not in [TokenType.Identifier, TokenType.Symbol]:
+			continue
+
+		match token.value:
+			'Function': token.type = TokenType.Function
+			'\n': token.type = TokenType.NewLine
+			'If': token.type = TokenType.If
+			'ElseIf': token.type = TokenType.Elif
+			'Else': token.type = TokenType.Else
+			'EndIf': token.type = TokenType.EndIf
+			'(': token.type = TokenType.OpenParenthesis
+			')': token.type = TokenType.CloseParenthesis
+			'\\': token.type = TokenType.Pointer
+			'.': token.type = TokenType.Typer
+			',': token.type = TokenType.Comma
+			'$', '#', '%':
+				token.type = TokenType.Type
+				token.value = {
+					'$': 'str',
+					'%': 'int',
+					'#': 'float'
+				}[token.value]
+				continue
+			'=', '+', '-', '*', '/':
+				token.type = TokenType.Operator
+				continue
+			'And':
+				token.type = TokenType.Operator
+				token.value = '&'
+				continue
+			'Or':
+				token.type = TokenType.Operator
+				token.value = '|'
+				continue
+			'Null': token.type = TokenType.Null
+			'Then': token.type = TokenType.Then
+			'Local': token.type = TokenType.Local
+			'Select': token.type = TokenType.Select
+			'For': token.type = TokenType.For
+
+			_:
+				continue
+
+		token.value = ''
 
 func step_back(file: FileAccess) -> void:
 	file.seek(file.get_position() - 1)
@@ -110,4 +177,28 @@ class Token:
 	var value: String
 
 	func _to_string() -> String:
+		match type:
+			TokenType.Comment: return '<Comment>'
+			TokenType.NumericValue: return '<%s>' % value
+			TokenType.Function: return '<func>'
+			TokenType.For: return '<for>'
+			TokenType.While: return '<while>'
+			TokenType.NewLine: return '<nl>'
+			TokenType.If: return '<if>'
+			TokenType.Then: return '<then>'
+			TokenType.Elif: return '<elif>'
+			TokenType.Else: return '<else>'
+			TokenType.EndIf: return '<endif>'
+			TokenType.Null: return '<null>'
+			TokenType.Operator: return '<%s>' % value
+			TokenType.Local: return '<local>'
+			TokenType.Select: return '<select>'
+			TokenType.StringLiteral: return '<str>'
+			TokenType.OpenParenthesis: return '<(>'
+			TokenType.CloseParenthesis: return '<)>'
+			TokenType.Type: return '<type: %s>' % value
+			TokenType.Pointer: return '->'
+			TokenType.Typer: return '<ty>'
+			TokenType.Comma: return '<,>'
+
 		return '<%s, %s>' % ['cisny'[type], value if value != '\n' else 'N']
