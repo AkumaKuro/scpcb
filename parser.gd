@@ -29,7 +29,8 @@ enum TokenType {
 	Type,
 	Typer,
 	Pointer,
-	Comma
+	Comma,
+	End
 }
 
 func _run() -> void:
@@ -87,6 +88,7 @@ func scan_keywords() -> void:
 			'ElseIf': token.type = TokenType.Elif
 			'Else': token.type = TokenType.Else
 			'EndIf': token.type = TokenType.EndIf
+			'End': token.type = TokenType.End
 			'(': token.type = TokenType.OpenParenthesis
 			')': token.type = TokenType.CloseParenthesis
 			'\\': token.type = TokenType.Pointer
@@ -174,7 +176,7 @@ func get_char(file: FileAccess) -> String:
 
 class Token:
 	var type: TokenType
-	var value: String
+	var value
 
 	func _to_string() -> String:
 		match type:
@@ -200,5 +202,6 @@ class Token:
 			TokenType.Pointer: return '->'
 			TokenType.Typer: return '<ty>'
 			TokenType.Comma: return '<,>'
+			TokenType.End: return '<End>'
 
 		return '<%s, %s>' % ['cisny'[type], value if value != '\n' else 'N']
