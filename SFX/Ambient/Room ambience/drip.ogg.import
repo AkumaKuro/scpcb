@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://c5kobwsi22o4m"
+path="res://.godot/imported/drip.ogg-d8df50a7e1fa85df0ec3802f7ecb2b1e.oggvorbisstr"
+
+[deps]
+
+source_file="res://SFX/Ambient/Room ambience/drip.ogg"
+dest_files=["res://.godot/imported/drip.ogg-d8df50a7e1fa85df0ec3802f7ecb2b1e.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4
