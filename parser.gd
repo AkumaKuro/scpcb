@@ -35,10 +35,13 @@ enum TokenType {
 	EndFunc,
 	Bool,
 	Break,
-	Default
+	Default,
+	New,
+	InitObj
 }
 
 func _run() -> void:
+	var timer: int = Time.get_ticks_msec()
 	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
 
 	var current_token: Token = Token.new()
@@ -54,6 +57,9 @@ func _run() -> void:
 		if chr == ';':
 			current_token = get_comment(file)
 			token_stream.append(current_token)
+			var token: Token = Token.new()
+			token.type = TokenType.NewLine
+			token_stream.append(token)
 
 		elif chr in '0123456789':
 			step_back(file)
@@ -61,7 +67,7 @@ func _run() -> void:
 			step_back(file)
 			token_stream.append(current_token)
 
-		elif chr in '$%.#,\n=+-*)/\\(':
+		elif chr in '$%.#,\n=+-*)/\\(><':
 			current_token = Token.new()
 			current_token.type = TokenType.Symbol
 			current_token.value = chr
@@ -81,29 +87,103 @@ func _run() -> void:
 
 	scan_keywords()
 	clean_newlines()
-	join_pointers()
-	join_endfunc()
-	get_parameters()
-	get_func_sigs()
-	print(token_stream)
-	print('Token Count: %s' % token_stream.size())
-	print('Data usage: %s KiB' % (var_to_bytes(token_stream).size()/1000.0))
+	split_lines()
 
-func join_pointers() -> void:
+	var token_count: int = 0
+	for line in token_stream:
+		if line is not Array:
+			continue
+
+		if contains_token(line, TokenType.Pointer):
+			join_pointers(line)
+		if contains_token(line, TokenType.Type):
+			get_parameters(line)
+		if contains_token(line, TokenType.Function):
+			join_endfunc(line)
+			get_func_sigs(line)
+		if contains_token(line, TokenType.New):
+			join_new(line)
+
+		token_count += line.size()
+		print(line)
+
+	print('Token Count: %s' % token_count)
+	print('Data usage: %s KiB' % (var_to_bytes(token_stream).size()/1000.0))
+	print('Parsing time: %s msec' % (Time.get_ticks_msec() - timer))
+
+func split_lines() -> void:
+	var lines: Array = []
+
+	var last_cursor: int = 0
+	var cursor: int = 0
+
+	while cursor < token_stream.size() - 1:
+		cursor += 1
+
+		var token: Token = token_stream[cursor] as Token
+		if !token:
+			continue
+
+		if token.type != TokenType.NewLine:
+			continue
+
+		lines.append(token_stream.slice(last_cursor + 1, cursor))
+		last_cursor = cursor
+
+	token_stream = lines
+
+func contains_token(array: Array, type: TokenType) -> bool:
+	var counter: int = -1
+
+	while counter < array.size() - 1:
+		counter += 1
+		var token: Token = array[counter] as Token
+
+		if !token:
+			continue
+
+		if token.type == type:
+			return true
+	return false
+
+func join_new(line: Array) -> void:
 	var cursor: int = -1
 
 	while true:
 		cursor += 1
-		if cursor == token_stream.size():
+		if cursor == line.size():
 			break
 
-		var token: RawToken = token_stream[cursor] as Token
+		var token: Token = line[cursor] as Token
+		if !token:
+			continue
+
+		if token.type != TokenType.New:
+			continue
+
+		var ident: Token = line[cursor + 1] as Token
+		if !ident or ident.type != TokenType.Identifier:
+			continue
+
+		token.type = TokenType.InitObj
+		token.value = ident.value
+		line.remove_at(cursor + 1)
+
+func join_pointers(line: Array) -> void:
+	var cursor: int = -1
+
+	while true:
+		cursor += 1
+		if cursor == line.size():
+			break
+
+		var token: RawToken = line[cursor] as Token
 		if !token:
 			return
 
 		if token.type == TokenType.Pointer:
-			var a: Token = token_stream[cursor - 1] as Token
-			var b: Token = token_stream[cursor + 1] as Token
+			var a: Token = line[cursor - 1] as Token
+			var b: Token = line[cursor + 1] as Token
 
 			if !(a and b):
 				printerr('A or B is not an identifier')
@@ -111,8 +191,8 @@ func join_pointers() -> void:
 
 			token.type = TokenType.Identifier
 			token.value = '%s.%s' % [a.value, b.value]
-			token_stream.remove_at(cursor + 1)
-			token_stream.remove_at(cursor - 1)
+			line.remove_at(cursor + 1)
+			line.remove_at(cursor - 1)
 			cursor -= 1
 
 func join_variable_declarations() -> void:
@@ -140,6 +220,7 @@ func scan_keywords() -> void:
 			'\\': token.type = TokenType.Pointer
 			'.': token.type = TokenType.Typer
 			',': token.type = TokenType.Comma
+			'New': token.type = TokenType.New
 			'Default': token.type = TokenType.Default
 			'True', 'False':
 				token.type = TokenType.Bool
@@ -176,45 +257,45 @@ func scan_keywords() -> void:
 
 		token.value = ''
 
-func join_endfunc() -> void:
+func join_endfunc(line: Array) -> void:
 	var cursor: int = -1
 
 	while true:
 		cursor += 1
-		if cursor == token_stream.size():
+		if cursor == line.size():
 			break
 
-		var token: Token = token_stream[cursor] as Token
+		var token: Token = line[cursor] as Token
 		if !token or token.type != TokenType.End:
 			continue
 
-		var next: Token = token_stream[cursor + 1] as Token
+		var next: Token = line[cursor + 1] as Token
 		if !next or next.type != TokenType.Function:
 			continue
 
 		token.type = TokenType.EndFunc
-		token_stream.remove_at(cursor + 1)
+		line.remove_at(cursor + 1)
 
-func get_func_sigs() -> void:
+func get_func_sigs(line: Array) -> void:
 	var cursor: int = -1
 
 	while true:
 		cursor += 1
-		if cursor == token_stream.size():
+		if cursor == line.size():
 			break
 
-		var token: Token = token_stream[cursor] as Token
+		var token: Token = line[cursor] as Token
 		if !token or token.type != TokenType.Function:
 			continue
 
 		var func_pos: int = cursor
 
-		var ident: Token = token_stream[cursor + 1] as Token
+		var ident: Token = line[cursor + 1] as Token
 
 		if !ident or ident.type != TokenType.Identifier:
 			continue
 
-		var paren: Token = token_stream[cursor + 2] as Token
+		var paren: Token = line[cursor + 2] as Token
 		if !paren or paren.type != TokenType.OpenParenthesis:
 			continue
 
@@ -223,7 +304,7 @@ func get_func_sigs() -> void:
 		var current_token: ParameterToken = ParameterToken.new()
 		while current_token.type != TokenType.CloseParenthesis:
 			cursor += 1
-			current_token = token_stream[cursor] as ParameterToken
+			current_token = line[cursor] as ParameterToken
 			if !current_token: break
 			if current_token is ParameterToken:
 				params.append(current_token)
@@ -232,32 +313,31 @@ func get_func_sigs() -> void:
 		function.name = ident.value
 		function.params = params
 
-		token_stream[func_pos] = function
+		line[func_pos] = function
 		for i: int in range(cursor, func_pos, -1):
-			token_stream.remove_at(i)
+			line.remove_at(i)
 		cursor = func_pos
-		DisplayServer.clipboard_set(str(inst_to_dict(function)))
 
-func get_parameters() -> void:
+func get_parameters(line: Array) -> void:
 	var cursor: int = -1
 
 	while true:
 		cursor += 1
-		if cursor == token_stream.size():
+		if cursor == line.size():
 			return
 
-		var token: Token = token_stream[cursor] as Token
+		var token: Token = line[cursor] as Token
 		if !token: continue
 
 		if token.type == TokenType.Type:
-			var ident: Token = token_stream[cursor - 1] as Token
+			var ident: Token = line[cursor - 1] as Token
 			if !ident or ident.type != TokenType.Identifier: return
 
 			var new_token: ParameterToken = ParameterToken.new()
 			new_token.name = ident.value
 			new_token.data_type = token.value
-			token_stream[cursor] = new_token
-			token_stream.remove_at(cursor - 1)
+			line[cursor] = new_token
+			line.remove_at(cursor - 1)
 			cursor -= 1
 
 func clean_newlines() -> void:
@@ -273,6 +353,8 @@ func clean_newlines() -> void:
 			continue
 
 		if token.type == TokenType.NewLine:
+			if cursor == token_stream.size() - 1:
+				return
 			var next: Token = token_stream[cursor + 1] as Token
 			if !next:
 				continue
@@ -382,7 +464,7 @@ class Token extends RawToken:
 			TokenType.Operator: return '<%s>' % value
 			TokenType.Local: return '<local>'
 			TokenType.Select: return '<select>'
-			TokenType.StringLiteral: return '<str>'
+			TokenType.StringLiteral: return '"%s"' % value
 			TokenType.OpenParenthesis: return '<(>'
 			TokenType.CloseParenthesis: return '<)>'
 			TokenType.Type: return '<type: %s>' % value
@@ -395,5 +477,7 @@ class Token extends RawToken:
 			TokenType.Break: return '<break>'
 			TokenType.EndFunc: return '<endfunc>'
 			TokenType.Default: return '<default>'
+			TokenType.New: return '<new>'
+			TokenType.InitObj: return '<init type: %s>' % value
 
 		return '<%s, %s>' % ['cisny'[type], value if value != '\n' else 'N']
