@@ -3,7 +3,7 @@ extends EditorScript
 
 const path: String = "res://testcode.txt"
 
-var token_stream: Array[Token] = []
+var token_stream: Array[RawToken] = []
 
 enum TokenType {
 	Comment,
@@ -12,6 +12,7 @@ enum TokenType {
 	NumericValue,
 	Symbol,
 	For,
+	Next,
 	Function,
 	While,
 	If,
@@ -30,7 +31,8 @@ enum TokenType {
 	Typer,
 	Pointer,
 	Comma,
-	End
+	End,
+	Bool
 }
 
 func _run() -> void:
@@ -73,11 +75,49 @@ func _run() -> void:
 			token_stream.append(current_token)
 
 		chr = get_char(file)
+
 	scan_keywords()
+	join_pointers()
 	print(token_stream)
+	print('Token Count: %s' % token_stream.size())
+	print('Data usage: %s KiB' % (var_to_bytes(token_stream).size()/1000.0))
+
+func join_pointers() -> void:
+	var cursor: int = 0
+
+	while true:
+		if cursor == token_stream.size():
+			break
+
+		var token: RawToken = token_stream[cursor] as Token
+		if !token:
+			return
+
+		if token.type == TokenType.Pointer:
+			var a: Token = token_stream[cursor - 1] as Token
+			var b: Token = token_stream[cursor + 1] as Token
+
+			if !(a and b):
+				printerr('A or B is not an identifier')
+				return
+
+			token.type = TokenType.Identifier
+			token.value = '%s.%s' % [a.value, b.value]
+			token_stream.remove_at(cursor + 1)
+			token_stream.remove_at(cursor - 1)
+			cursor -= 1
+
+		cursor += 1
+
+func join_variable_declarations() -> void:
+	pass
 
 func scan_keywords() -> void:
-	for token: Token in token_stream:
+	for token: RawToken in token_stream:
+		token = token as Token
+		if !token:
+			continue
+
 		if token.type not in [TokenType.Identifier, TokenType.Symbol]:
 			continue
 
@@ -94,6 +134,9 @@ func scan_keywords() -> void:
 			'\\': token.type = TokenType.Pointer
 			'.': token.type = TokenType.Typer
 			',': token.type = TokenType.Comma
+			'True', 'False':
+				token.type = TokenType.Bool
+				continue
 			'$', '#', '%':
 				token.type = TokenType.Type
 				token.value = {
@@ -118,6 +161,7 @@ func scan_keywords() -> void:
 			'Local': token.type = TokenType.Local
 			'Select': token.type = TokenType.Select
 			'For': token.type = TokenType.For
+			'Next': token.type = TokenType.Next
 
 			_:
 				continue
@@ -174,9 +218,25 @@ func get_char(file: FileAccess) -> String:
 	else:
 		return ''
 
-class Token:
+class RawToken:
 	var type: TokenType
-	var value
+
+enum DataType {
+	Int,
+	Float,
+	Str
+}
+
+class VarDecToken:
+	var name: String
+	var data_type: DataType
+	var value: String
+
+	func _to_string() -> String:
+		return '<VarDec name: %s, type: %s, value: %s>' % [name, data_type, value]
+
+class Token extends RawToken:
+	var value: String
 
 	func _to_string() -> String:
 		match type:
@@ -203,5 +263,7 @@ class Token:
 			TokenType.Typer: return '<ty>'
 			TokenType.Comma: return '<,>'
 			TokenType.End: return '<End>'
+			TokenType.Bool: return '<%s>' % value.to_lower()
+			TokenType.Next: return '<next>'
 
 		return '<%s, %s>' % ['cisny'[type], value if value != '\n' else 'N']
