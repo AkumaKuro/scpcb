@@ -19,6 +19,7 @@ enum TokenType {
 	Elif,
 	Else,
 	EndIf,
+	EndSelect,
 	NewLine,
 	Operator,
 	Then,
@@ -37,7 +38,13 @@ enum TokenType {
 	Break,
 	Default,
 	New,
-	InitObj
+	InitObj,
+	LessThan,
+	GreaterThan,
+	NotEqual,
+	Literal,
+	OpenBracket,
+	ClosedBracket
 }
 
 func _run() -> void:
@@ -67,7 +74,7 @@ func _run() -> void:
 			step_back(file)
 			token_stream.append(current_token)
 
-		elif chr in '$%.#,\n=+-*)/\\(><':
+		elif chr in '$%.#,\n=+-*)/\\(><[]':
 			current_token = Token.new()
 			current_token.type = TokenType.Symbol
 			current_token.value = chr
@@ -96,18 +103,26 @@ func _run() -> void:
 
 		if contains_token(line, TokenType.Pointer):
 			join_pointers(line)
+			print(line)
 		if contains_token(line, TokenType.Typer):
 			join_typing(line)
 		if contains_token(line, TokenType.Type):
 			get_parameters(line)
-		if contains_token(line, TokenType.Function):
+		if contains_token(line, TokenType.End):
 			join_endfunc(line)
+			join_endif(line)
+			join_endselect(line)
+		if contains_token(line, TokenType.Function):
 			get_func_sigs(line)
 		if contains_token(line, TokenType.New):
 			join_new(line)
+		if contains_token(line, TokenType.LessThan):
+			join_ne(line)
+		if contains_type(line, &"ContainerSide"):
+			join_containers(line)
 
 		token_count += line.size()
-		print(line)
+		#print(line)
 
 	print('Token Count: %s' % token_count)
 	print('Data usage: %s KiB' % (var_to_bytes(token_stream).size()/1000.0))
@@ -134,6 +149,12 @@ func split_lines() -> void:
 
 	token_stream = lines
 
+func contains_type(line: Array, type: StringName) -> bool:
+	for token: RawToken in line:
+		if str(inst_to_dict(token)['@subpath']) == type:
+			return true
+	return false
+
 func contains_token(array: Array, type: TokenType) -> bool:
 	var counter: int = -1
 
@@ -147,6 +168,34 @@ func contains_token(array: Array, type: TokenType) -> bool:
 		if token.type == type:
 			return true
 	return false
+
+func join_endif(line: Array) -> void:
+	join_end(line, TokenType.If, TokenType.EndIf)
+
+func join_endselect(line: Array) -> void:
+	join_end(line, TokenType.Select, TokenType.EndSelect)
+
+func join_end(line: Array, type: TokenType, result: TokenType) -> void:
+	var cursor: int = -1
+
+	while true:
+		cursor += 1
+		if cursor == line.size():
+			break
+
+		var token: Token = line[cursor] as Token
+		if !token:
+			continue
+
+		if token.type != TokenType.End:
+			continue
+
+		var ident: Token = line[cursor + 1] as Token
+		if !ident or ident.type != type:
+			continue
+
+		token.type = result
+		line.remove_at(cursor + 1)
 
 func join_typing(line: Array) -> void:
 	var cursor: int = -1
@@ -171,6 +220,27 @@ func join_typing(line: Array) -> void:
 		token.value = ident.value
 		line.remove_at(cursor + 1)
 
+func join_ne(line: Array) -> void:
+	var cursor: int = -1
+
+	while true:
+		cursor += 1
+		if cursor == line.size():
+			break
+
+		var token: Token = line[cursor] as Token
+		if !token:
+			continue
+
+		if token.type != TokenType.LessThan:
+			continue
+
+		var ident: Token = line[cursor + 1] as Token
+		if !ident or ident.type != TokenType.GreaterThan:
+			continue
+
+		token.type = TokenType.NotEqual
+		line.remove_at(cursor + 1)
 
 func join_new(line: Array) -> void:
 	var cursor: int = -1
@@ -203,9 +273,9 @@ func join_pointers(line: Array) -> void:
 		if cursor == line.size():
 			break
 
-		var token: RawToken = line[cursor] as Token
+		var token: Token = line[cursor] as Token
 		if !token:
-			return
+			continue
 
 		if token.type == TokenType.Pointer:
 			var a: Token = line[cursor - 1] as Token
@@ -224,9 +294,31 @@ func join_pointers(line: Array) -> void:
 func join_variable_declarations() -> void:
 	pass
 
+func join_containers(line: Array) -> void:
+	var sides: PackedInt32Array = []
+
+	for i: int in range(line.size()):
+		if line[i] is not ContainerSide:
+			continue
+		sides.append(i)
+
+	var out: String = 'Containers:'
+	for i: int in sides:
+		out += ', %s' % line[i]
+	print(out)
+
+func get_container(type: ContainerType, line: Array) -> void:
+	pass
+
 func scan_keywords() -> void:
-	for token: RawToken in token_stream:
-		token = token as Token
+	var cursor: int = -1
+	while true:
+		cursor += 1
+
+		if cursor == token_stream.size():
+			break
+
+		var token: Token = token_stream[cursor] as Token
 		if !token:
 			continue
 
@@ -241,8 +333,12 @@ func scan_keywords() -> void:
 			'Else': token.type = TokenType.Else
 			'EndIf': token.type = TokenType.EndIf
 			'End': token.type = TokenType.End
-			'(': token.type = TokenType.OpenParenthesis
-			')': token.type = TokenType.CloseParenthesis
+			'(': token_stream[cursor] = ContainerSide.new(ContainerType.Parenthesis, true)
+			')': token_stream[cursor] = ContainerSide.new(ContainerType.Parenthesis, false)
+			'[': token_stream[cursor] = ContainerSide.new(ContainerType.Bracket, true)
+			']': token_stream[cursor] = ContainerSide.new(ContainerType.Bracket, false)
+			'{': token_stream[cursor] = ContainerSide.new(ContainerType.Braces, true)
+			'}': token_stream[cursor] = ContainerSide.new(ContainerType.Braces, false)
 			'\\': token.type = TokenType.Pointer
 			'.': token.type = TokenType.Typer
 			',': token.type = TokenType.Comma
@@ -259,6 +355,8 @@ func scan_keywords() -> void:
 					'#': 'float'
 				}[token.value]
 				continue
+			'<': token.type = TokenType.LessThan
+			'>': token.type = TokenType.GreaterThan
 			'=', '+', '-', '*', '/':
 				token.type = TokenType.Operator
 				continue
@@ -270,7 +368,8 @@ func scan_keywords() -> void:
 				token.type = TokenType.Operator
 				token.value = '|'
 				continue
-			'Null': token.type = TokenType.Null
+			'Null':
+				token_stream[cursor] = NullToken.new()
 			'Then': token.type = TokenType.Then
 			'Local': token.type = TokenType.Local
 			'Select': token.type = TokenType.Select
@@ -284,23 +383,7 @@ func scan_keywords() -> void:
 		token.value = ''
 
 func join_endfunc(line: Array) -> void:
-	var cursor: int = -1
-
-	while true:
-		cursor += 1
-		if cursor == line.size():
-			break
-
-		var token: Token = line[cursor] as Token
-		if !token or token.type != TokenType.End:
-			continue
-
-		var next: Token = line[cursor + 1] as Token
-		if !next or next.type != TokenType.Function:
-			continue
-
-		token.type = TokenType.EndFunc
-		line.remove_at(cursor + 1)
+	join_end(line, TokenType.Function, TokenType.EndFunc)
 
 func get_func_sigs(line: Array) -> void:
 	var cursor: int = -1
@@ -415,17 +498,27 @@ func get_identifier(file: FileAccess) -> Token:
 			return chr.to_lower() in 'abcdefghijklmnopqrstuvwxyz_0123456789'
 	)
 
-func get_string(file: FileAccess) -> Token:
-	return get_token(
+func get_string(file: FileAccess) -> StringToken:
+	var token: Token = get_token(
 		file, TokenType.StringLiteral, "Missing closing \"",
 		func(chr: String) -> bool: return chr != '"'
 	)
 
-func get_numeric(file: FileAccess) -> Token:
-	return get_token(
-		file, TokenType.NumericValue, "",
+	var lit_token: StringToken = StringToken.new()
+	lit_token.value = token.value
+
+	return lit_token
+
+func get_numeric(file: FileAccess) -> NumberToken:
+	var token: Token = get_token(
+		file, TokenType.NumericValue, "Missing closing \"",
 		func(chr: String) -> bool: return chr in '0123456789.'
 	)
+
+	var lit_token: NumberToken = NumberToken.new()
+	lit_token.value = token.value
+
+	return lit_token
 
 func get_comment(file: FileAccess) -> Token:
 	return get_token(
@@ -448,6 +541,28 @@ enum DataType {
 	Str
 }
 
+enum ContainerType {
+	Parenthesis,
+	Bracket,
+	Braces
+}
+
+class ContainerSide extends RawToken:
+
+	var container_type: ContainerType
+	var is_open: bool
+
+	func _init(type: ContainerType, is_open: bool) -> void:
+		container_type = type
+		self.is_open = is_open
+
+	func _to_string() -> String:
+		return '<%s>' % ['()', '[]', '{}'][container_type][int(!is_open)]
+
+class TokenContainer extends RawToken:
+	var container_type: ContainerType
+	var content: Array[RawToken] = []
+
 class FuncSigToken:
 	var name: String
 	var params: Array[ParameterToken]
@@ -469,6 +584,25 @@ class VarDecToken:
 
 	func _to_string() -> String:
 		return '<VarDec name: %s, type: %s, value: %s>' % [name, data_type, value]
+
+class LiteralToken extends Token:
+	var data_type: String
+
+	func _to_string() -> String:
+		return '<lit type: %s, value: %s>' % [data_type, value]
+
+class StringToken extends LiteralToken:
+
+	func _to_string() -> String:
+		return '<str>'
+
+class NumberToken extends LiteralToken:
+	func _to_string() -> String:
+		return '<number>'
+
+class NullToken extends LiteralToken:
+	func _to_string() -> String:
+		return '<null>'
 
 class Token extends RawToken:
 	var value: String
@@ -494,10 +628,10 @@ class Token extends RawToken:
 			TokenType.OpenParenthesis: return '<(>'
 			TokenType.CloseParenthesis: return '<)>'
 			TokenType.Type: return '<type: %s>' % value
-			TokenType.Pointer: return '->'
+			TokenType.Pointer: return '<ref>'
 			TokenType.Typer: return '<ty>'
 			TokenType.Comma: return '<,>'
-			TokenType.End: return '<End>'
+			TokenType.End: return '<end>'
 			TokenType.Bool: return '<%s>' % value.to_lower()
 			TokenType.Next: return '<continue>'
 			TokenType.Break: return '<break>'
@@ -505,5 +639,9 @@ class Token extends RawToken:
 			TokenType.Default: return '<default>'
 			TokenType.New: return '<new>'
 			TokenType.InitObj: return '<init type: %s>' % value
+			TokenType.LessThan: return '<<>'
+			TokenType.GreaterThan: return '<>>'
+			TokenType.NotEqual: return '<!=>'
+			TokenType.EndSelect: return '<endselect>'
 
 		return '<%s, %s>' % ['cisny'[type], value if value != '\n' else 'N']
