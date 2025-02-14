@@ -3,7 +3,7 @@ extends EditorScript
 
 const path: String = "res://testcode.txt"
 
-var token_stream: Array[RawToken] = []
+var token_stream: Array = []
 
 enum TokenType {
 	Comment,
@@ -32,7 +32,10 @@ enum TokenType {
 	Pointer,
 	Comma,
 	End,
-	Bool
+	EndFunc,
+	Bool,
+	Break,
+	Default
 }
 
 func _run() -> void:
@@ -77,15 +80,20 @@ func _run() -> void:
 		chr = get_char(file)
 
 	scan_keywords()
+	clean_newlines()
 	join_pointers()
+	join_endfunc()
+	get_parameters()
+	get_func_sigs()
 	print(token_stream)
 	print('Token Count: %s' % token_stream.size())
 	print('Data usage: %s KiB' % (var_to_bytes(token_stream).size()/1000.0))
 
 func join_pointers() -> void:
-	var cursor: int = 0
+	var cursor: int = -1
 
 	while true:
+		cursor += 1
 		if cursor == token_stream.size():
 			break
 
@@ -106,8 +114,6 @@ func join_pointers() -> void:
 			token_stream.remove_at(cursor + 1)
 			token_stream.remove_at(cursor - 1)
 			cursor -= 1
-
-		cursor += 1
 
 func join_variable_declarations() -> void:
 	pass
@@ -134,6 +140,7 @@ func scan_keywords() -> void:
 			'\\': token.type = TokenType.Pointer
 			'.': token.type = TokenType.Typer
 			',': token.type = TokenType.Comma
+			'Default': token.type = TokenType.Default
 			'True', 'False':
 				token.type = TokenType.Bool
 				continue
@@ -162,11 +169,117 @@ func scan_keywords() -> void:
 			'Select': token.type = TokenType.Select
 			'For': token.type = TokenType.For
 			'Next': token.type = TokenType.Next
+			'Exit': token.type = TokenType.Break
 
 			_:
 				continue
 
 		token.value = ''
+
+func join_endfunc() -> void:
+	var cursor: int = -1
+
+	while true:
+		cursor += 1
+		if cursor == token_stream.size():
+			break
+
+		var token: Token = token_stream[cursor] as Token
+		if !token or token.type != TokenType.End:
+			continue
+
+		var next: Token = token_stream[cursor + 1] as Token
+		if !next or next.type != TokenType.Function:
+			continue
+
+		token.type = TokenType.EndFunc
+		token_stream.remove_at(cursor + 1)
+
+func get_func_sigs() -> void:
+	var cursor: int = -1
+
+	while true:
+		cursor += 1
+		if cursor == token_stream.size():
+			break
+
+		var token: Token = token_stream[cursor] as Token
+		if !token or token.type != TokenType.Function:
+			continue
+
+		var func_pos: int = cursor
+
+		var ident: Token = token_stream[cursor + 1] as Token
+
+		if !ident or ident.type != TokenType.Identifier:
+			continue
+
+		var paren: Token = token_stream[cursor + 2] as Token
+		if !paren or paren.type != TokenType.OpenParenthesis:
+			continue
+
+		cursor += 2
+		var params: Array[ParameterToken] = []
+		var current_token: ParameterToken = ParameterToken.new()
+		while current_token.type != TokenType.CloseParenthesis:
+			cursor += 1
+			current_token = token_stream[cursor] as ParameterToken
+			if !current_token: break
+			if current_token is ParameterToken:
+				params.append(current_token)
+
+		var function: FuncSigToken = FuncSigToken.new()
+		function.name = ident.value
+		function.params = params
+
+		token_stream[func_pos] = function
+		for i: int in range(cursor, func_pos, -1):
+			token_stream.remove_at(i)
+		cursor = func_pos
+		DisplayServer.clipboard_set(str(inst_to_dict(function)))
+
+func get_parameters() -> void:
+	var cursor: int = -1
+
+	while true:
+		cursor += 1
+		if cursor == token_stream.size():
+			return
+
+		var token: Token = token_stream[cursor] as Token
+		if !token: continue
+
+		if token.type == TokenType.Type:
+			var ident: Token = token_stream[cursor - 1] as Token
+			if !ident or ident.type != TokenType.Identifier: return
+
+			var new_token: ParameterToken = ParameterToken.new()
+			new_token.name = ident.value
+			new_token.data_type = token.value
+			token_stream[cursor] = new_token
+			token_stream.remove_at(cursor - 1)
+			cursor -= 1
+
+func clean_newlines() -> void:
+	var cursor: int = -1
+
+	while true:
+		cursor += 1
+		if cursor == token_stream.size():
+			return
+
+		var token: Token = token_stream[cursor] as Token
+		if !token:
+			continue
+
+		if token.type == TokenType.NewLine:
+			var next: Token = token_stream[cursor + 1] as Token
+			if !next:
+				continue
+
+			if next.type == TokenType.NewLine:
+				token_stream.remove_at(cursor + 1)
+				cursor -= 1
 
 func step_back(file: FileAccess) -> void:
 	file.seek(file.get_position() - 1)
@@ -227,6 +340,20 @@ enum DataType {
 	Str
 }
 
+class FuncSigToken:
+	var name: String
+	var params: Array[ParameterToken]
+
+	func _to_string() -> String:
+		return '<funcsig name: %s, params: %s>' % [name, params]
+
+class ParameterToken extends RawToken:
+	var name: String
+	var data_type: String
+
+	func _to_string() -> String:
+		return '<param name: %s, type: %s>' % [name, data_type]
+
 class VarDecToken:
 	var name: String
 	var data_type: DataType
@@ -264,6 +391,9 @@ class Token extends RawToken:
 			TokenType.Comma: return '<,>'
 			TokenType.End: return '<End>'
 			TokenType.Bool: return '<%s>' % value.to_lower()
-			TokenType.Next: return '<next>'
+			TokenType.Next: return '<continue>'
+			TokenType.Break: return '<break>'
+			TokenType.EndFunc: return '<endfunc>'
+			TokenType.Default: return '<default>'
 
 		return '<%s, %s>' % ['cisny'[type], value if value != '\n' else 'N']
