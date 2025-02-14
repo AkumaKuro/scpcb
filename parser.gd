@@ -105,7 +105,6 @@ func _run() -> void:
 
 		if contains_token(line, TokenType.Pointer):
 			join_pointers(line)
-			print(line)
 		if contains_token(line, TokenType.Typer):
 			join_typing(line)
 		if contains_token(line, TokenType.Type):
@@ -126,7 +125,11 @@ func _run() -> void:
 			join_containers(line)
 
 		token_count += line.size()
-		#print(line)
+		print(line)
+
+	print()
+	#for container: TokenContainer in TokenContainer.containers:
+	#	print(container)
 
 	print('Token Count: %s' % token_count)
 	print('Data usage: %s KiB' % (var_to_bytes(token_stream).size()/1000.0))
@@ -295,8 +298,7 @@ func join_pointers(line: Array) -> void:
 			var b: Token = line[cursor + 1] as Token
 
 			if !(a and b):
-				printerr('A or B is not an identifier')
-				return
+				continue
 
 			token.type = TokenType.Identifier
 			token.value = '%s.%s' % [a.value, b.value]
@@ -309,19 +311,42 @@ func join_variable_declarations() -> void:
 
 func join_containers(line: Array) -> void:
 	var sides: PackedInt32Array = []
+	var cursor: int = 0
 
-	for i: int in range(line.size()):
-		if line[i] is not ContainerSide:
+	while cursor < line.size():
+		var token: ContainerSide = line[cursor] as ContainerSide
+		if token and token.is_open:
+			get_container(token.container_type, line, cursor + 1)
+
+		cursor += 1
+
+func get_container(type: ContainerType, line: Array, position: int) -> void:
+	var cursor: int = position
+
+	while cursor < line.size():
+
+		var token: ContainerSide = line[cursor] as ContainerSide
+		if !token:
+			cursor += 1
 			continue
-		sides.append(i)
 
-	var out: String = 'Containers:'
-	for i: int in sides:
-		out += ', %s' % line[i]
-	print(out)
+		if token.is_open:
+			cursor += 1
+			get_container(token.container_type, line, cursor)
 
-func get_container(type: ContainerType, line: Array) -> void:
-	pass
+		if token.container_type == type:
+			var container: TokenContainer = TokenContainer.new()
+			container.container_type = type
+			container.content = line.slice(position, cursor)
+			line[position - 1] = container
+
+			for i: int in range(position, cursor):
+				line.remove_at(position)
+			if position < line.size():
+				line.remove_at(position)
+
+		cursor += 1
+
 
 func scan_keywords() -> void:
 	var cursor: int = -1
@@ -345,6 +370,14 @@ func scan_keywords() -> void:
 			'ElseIf': token.type = TokenType.Elif
 			'Else': token.type = TokenType.Else
 			'EndIf': token.type = TokenType.EndIf
+			'Shl':
+				token.type = TokenType.Operator
+				token.value = '<<'
+				continue
+			'Shr':
+				token.type = TokenType.Operator
+				token.value = '>>'
+				continue
 			'End': token.type = TokenType.End
 			'Return': token.type = TokenType.Return
 			'(': token_stream[cursor] = ContainerSide.new(ContainerType.Parenthesis, true)
@@ -575,8 +608,15 @@ class ContainerSide extends RawToken:
 		return '<%s>' % ['()', '[]', '{}'][container_type][int(!is_open)]
 
 class TokenContainer extends RawToken:
+	static var containers: Array[TokenContainer] = []
 	var container_type: ContainerType
-	var content: Array[RawToken] = []
+	var content: Array = []
+
+	func _init() -> void:
+		containers.append(self)
+
+	func _to_string() -> String:
+		return '<cont type: %s, content: %s>' % ['pbc'[container_type], content]
 
 class FuncSigToken:
 	var name: String
@@ -606,22 +646,26 @@ class VarDecToken:
 	func _to_string() -> String:
 		return '<VarDec name: %s, type: %s, value: %s>' % [name, data_type, value]
 
-class LiteralToken extends Token:
+class ValueToken extends Token:
 	var data_type: String
 
 	func _to_string() -> String:
 		return '<lit type: %s, value: %s>' % [data_type, value]
 
-class StringToken extends LiteralToken:
+class ExprToken extends ValueToken:
+	pass
+
+
+class StringToken extends ValueToken:
 
 	func _to_string() -> String:
 		return '<str>'
 
-class NumberToken extends LiteralToken:
+class NumberToken extends ValueToken:
 	func _to_string() -> String:
 		return '<number>'
 
-class NullToken extends LiteralToken:
+class NullToken extends ValueToken:
 	func _to_string() -> String:
 		return '<null>'
 
