@@ -96,6 +96,8 @@ func _run() -> void:
 
 		if contains_token(line, TokenType.Pointer):
 			join_pointers(line)
+		if contains_token(line, TokenType.Typer):
+			join_typing(line)
 		if contains_token(line, TokenType.Type):
 			get_parameters(line)
 		if contains_token(line, TokenType.Function):
@@ -145,6 +147,30 @@ func contains_token(array: Array, type: TokenType) -> bool:
 		if token.type == type:
 			return true
 	return false
+
+func join_typing(line: Array) -> void:
+	var cursor: int = -1
+
+	while true:
+		cursor += 1
+		if cursor == line.size():
+			break
+
+		var token: Token = line[cursor] as Token
+		if !token:
+			continue
+
+		if token.type != TokenType.Typer:
+			continue
+
+		var ident: Token = line[cursor + 1] as Token
+		if !ident or ident.type != TokenType.Identifier:
+			continue
+
+		token.type = TokenType.Type
+		token.value = ident.value
+		line.remove_at(cursor + 1)
+
 
 func join_new(line: Array) -> void:
 	var cursor: int = -1
