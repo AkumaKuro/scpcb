@@ -1,9 +1,21 @@
-@tool
-extends EditorScript
+extends Node
 
 const path: String = "res://testcode.txt"
 
 var token_stream: Array = []
+
+enum KeyWord {
+	Function,
+	Then,
+	Local,
+	Select
+}
+
+enum Symbol {
+	And,
+	Or,
+	Equals,
+}
 
 enum TokenType {
 	Comment,
@@ -26,8 +38,6 @@ enum TokenType {
 	Null,
 	Local,
 	Select,
-	OpenParenthesis,
-	CloseParenthesis,
 	Type,
 	Typer,
 	Pointer,
@@ -47,11 +57,11 @@ enum TokenType {
 	ClosedBracket
 }
 
-func _run() -> void:
+func _ready() -> void:
 	var timer: int = Time.get_ticks_msec()
 	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
 
-	var current_token: Token = Token.new()
+	var current_token: RawToken = Token.new()
 	var current_type: TokenType
 
 	if file.eof_reached():
@@ -75,9 +85,17 @@ func _run() -> void:
 			token_stream.append(current_token)
 
 		elif chr in '$%.#,\n=+-*)/\\(><[]':
-			current_token = Token.new()
-			current_token.type = TokenType.Symbol
-			current_token.value = chr
+			match chr:
+				'&': current_token = TypeToken.new(&'str')
+				'%': current_token = TypeToken.new(&'int')
+				'#': current_token = TypeToken.new(&'float')
+
+				'(': current_token = ContainerSide.new(ContainerType.Parenthesis, true)
+				')': current_token = ContainerSide.new(ContainerType.Parenthesis, false)
+
+				_:
+					current_token = null #SymbolToken.new(Symbol.Or)
+					#current_token.value = chr
 			token_stream.append(current_token)
 
 		elif chr == '"':
@@ -111,21 +129,20 @@ func _run() -> void:
 			join_endfunc(line)
 			join_endif(line)
 			join_endselect(line)
-		if contains_token(line, TokenType.Function):
-			get_func_sigs(line)
+
 		if contains_token(line, TokenType.New):
 			join_new(line)
 		if contains_token(line, TokenType.LessThan):
 			join_ne(line)
 		if contains_type(line, &"ContainerSide"):
-			join_containers(line)
+			pass #join_containers(line)
+		if contains_token(line, TokenType.Function):
+			get_func_sigs(line)
 
 		token_count += line.size()
 		print(line)
 
 	print()
-	#for container: TokenContainer in TokenContainer.containers:
-	#	print(container)
 
 	print('Token Count: %s' % token_count)
 	print('Data usage: %s KiB' % (var_to_bytes(token_stream).size()/1000.0))
@@ -343,15 +360,13 @@ func scan_keywords() -> void:
 		if cursor == token_stream.size():
 			break
 
-		var token: Token = token_stream[cursor] as Token
+		var token: IdentifierToken = token_stream[cursor] as IdentifierToken
+
 		if !token:
 			continue
 
-		if token.type not in [TokenType.Identifier, TokenType.Symbol]:
-			continue
-
-		match token.value:
-			'Function': token.type = TokenType.Function
+		match token.name:
+			'Function': token_stream[cursor] = KeyWordToken.new(KeyWord.Function)
 			'\n': token.type = TokenType.NewLine
 			'If': token.type = TokenType.If
 			'ElseIf': token.type = TokenType.Elif
@@ -366,7 +381,7 @@ func scan_keywords() -> void:
 				token.value = '>>'
 				continue
 			'End': token.type = TokenType.End
-			'(': token_stream[cursor] = ContainerSide.new(ContainerType.Parenthesis, true)
+
 			')': token_stream[cursor] = ContainerSide.new(ContainerType.Parenthesis, false)
 			'[': token_stream[cursor] = ContainerSide.new(ContainerType.Bracket, true)
 			']': token_stream[cursor] = ContainerSide.new(ContainerType.Bracket, false)
@@ -394,26 +409,19 @@ func scan_keywords() -> void:
 				token.type = TokenType.Operator
 				continue
 			'And':
-				token.type = TokenType.Operator
-				token.value = '&'
-				continue
+				token_stream[cursor] = SymbolToken.new(Symbol.And)
 			'Or':
-				token.type = TokenType.Operator
-				token.value = '|'
-				continue
-			'Null':
-				token_stream[cursor] = NullToken.new()
-			'Then': token.type = TokenType.Then
-			'Local': token.type = TokenType.Local
-			'Select': token.type = TokenType.Select
+				token_stream[cursor] = SymbolToken.new(Symbol.Or)
+			'Null': token_stream[cursor] = NullToken.new()
+			'Then': token_stream[cursor] = KeyWordToken.new(KeyWord.Then)
+			'Local': token_stream[cursor] = KeyWordToken.new(KeyWord.Local)
+			'Select': token_stream[cursor] = KeyWordToken.new(KeyWord.Select)
 			'For': token.type = TokenType.For
 			'Next': token.type = TokenType.Next
 			'Exit': token.type = TokenType.Break
 
 			_:
 				continue
-
-		token.value = ''
 
 func join_endfunc(line: Array) -> void:
 	join_end(line, TokenType.Function, TokenType.EndFunc)
@@ -437,28 +445,29 @@ func get_func_sigs(line: Array) -> void:
 		if !ident or ident.type != TokenType.Identifier:
 			continue
 
-		var paren: Token = line[cursor + 2] as Token
-		if !paren or paren.type != TokenType.OpenParenthesis:
+		var container: TokenContainer = line[cursor + 2] as TokenContainer
+		if !container or container.container_type != ContainerType.Parenthesis:
+			print(container.container_type != ContainerType.Parenthesis)
 			continue
 
-		cursor += 2
 		var params: Array[ParameterToken] = []
-		var current_token: ParameterToken = ParameterToken.new()
-		while current_token.type != TokenType.CloseParenthesis:
-			cursor += 1
-			current_token = line[cursor] as ParameterToken
-			if !current_token: break
-			if current_token is ParameterToken:
-				params.append(current_token)
+		for param: IdentifierToken in container.content:
+			var typed_param: ParameterToken = param as ParameterToken
+
+			if !typed_param:
+				typed_param = ParameterToken.new()
+				typed_param.data_type = ''
+				typed_param.name = param.name
+
+			params.append(typed_param)
 
 		var function: FuncSigToken = FuncSigToken.new()
 		function.name = ident.value
 		function.params = params
 
 		line[func_pos] = function
-		for i: int in range(cursor, func_pos, -1):
-			line.remove_at(i)
-		cursor = func_pos
+		for i: int in range(2):
+			line.remove_at(func_pos + 1)
 
 func get_parameters(line: Array) -> void:
 	var cursor: int = -1
@@ -524,12 +533,16 @@ func get_token(file: FileAccess, type: TokenType, error: String, filter: Callabl
 
 	return token
 
-func get_identifier(file: FileAccess) -> Token:
-	return get_token(
+func get_identifier(file: FileAccess) -> IdentifierToken:
+	var token: Token =  get_token(
 		file, TokenType.Identifier, "",
 		func(chr: String) -> bool:
 			return chr.to_lower() in 'abcdefghijklmnopqrstuvwxyz_0123456789'
 	)
+
+	var ident: IdentifierToken = IdentifierToken.new()
+	ident.name = token.value
+	return ident
 
 func get_string(file: FileAccess) -> StringToken:
 	var token: Token = get_token(
@@ -544,7 +557,7 @@ func get_string(file: FileAccess) -> StringToken:
 
 func get_numeric(file: FileAccess) -> NumberToken:
 	var token: Token = get_token(
-		file, TokenType.NumericValue, "Missing closing \"",
+		file, TokenType.NumericValue, "",
 		func(chr: String) -> bool: return chr in '0123456789.'
 	)
 
@@ -567,6 +580,16 @@ func get_char(file: FileAccess) -> String:
 
 class RawToken:
 	var type: TokenType
+
+class KeyWordToken extends RawToken:
+	var keyword: KeyWord
+	func _init(keyword: KeyWord) -> void:
+		self.keyword = keyword
+
+	func _to_string() -> String:
+		return '<%s>' % [
+			'func', 'then', 'local', 'select'
+		][keyword]
 
 enum DataType {
 	Int,
@@ -610,8 +633,13 @@ class FuncSigToken:
 	func _to_string() -> String:
 		return '<funcsig name: %s, params: %s>' % [name, params]
 
-class ParameterToken extends RawToken:
+class IdentifierToken extends RawToken:
 	var name: String
+
+	func _to_string() -> String:
+		return '<i name: %s>' % name
+
+class ParameterToken extends IdentifierToken:
 	var data_type: String
 
 	func _to_string() -> String:
@@ -625,6 +653,15 @@ class VarDecToken:
 	func _to_string() -> String:
 		return '<VarDec name: %s, type: %s, value: %s>' % [name, data_type, value]
 
+class TypeToken extends RawToken:
+	var type_name: StringName
+
+	func _init(type: StringName) -> void:
+		type_name = type
+
+	func _to_string() -> String:
+		return '<type: %s>' % type_name
+
 class ValueToken extends Token:
 	var data_type: String
 
@@ -634,6 +671,26 @@ class ValueToken extends Token:
 class ExprToken extends ValueToken:
 	pass
 
+enum Operators {
+	Add,
+	Sub,
+	Mult,
+	Div
+}
+
+class SymbolToken extends RawToken:
+	var value: Symbol
+
+	func _init(symbol: Symbol) -> void:
+		value = symbol
+
+	func _to_string() -> String:
+		return '<%s>' % '&|='[value]
+
+class OperationToken extends ExprToken:
+	var a: Token
+	var b: Token
+	var operation: Operators
 
 class StringToken extends ValueToken:
 
@@ -669,8 +726,6 @@ class Token extends RawToken:
 			TokenType.Local: return '<local>'
 			TokenType.Select: return '<select>'
 			TokenType.StringLiteral: return '"%s"' % value
-			TokenType.OpenParenthesis: return '<(>'
-			TokenType.CloseParenthesis: return '<)>'
 			TokenType.Type: return '<type: %s>' % value
 			TokenType.Pointer: return '<ref>'
 			TokenType.Typer: return '<ty>'
