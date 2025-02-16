@@ -1,3 +1,4 @@
 res://scenes/globals.tscn
 res://parser.gd
 res://scenes/debugger.tscn
+res://testcode.txt
