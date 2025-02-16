@@ -37,7 +37,10 @@ enum TokenType {
 	Break,
 	Default,
 	New,
-	InitObj
+	InitObj,
+	Return,
+	Case,
+	SwitchCase
 }
 
 func _run() -> void:
@@ -67,7 +70,7 @@ func _run() -> void:
 			step_back(file)
 			token_stream.append(current_token)
 
-		elif chr in '$%.#,\n=+-*)/\\(><':
+		elif chr in '$%.#,\n=+-*)/\\(><:':
 			current_token = Token.new()
 			current_token.type = TokenType.Symbol
 			current_token.value = chr
@@ -103,6 +106,8 @@ func _run() -> void:
 			get_func_sigs(line)
 		if contains_token(line, TokenType.New):
 			join_new(line)
+		if contains_token(line, TokenType.Case):
+			join_case(line)
 
 		token_count += line.size()
 		print(line)
@@ -110,6 +115,15 @@ func _run() -> void:
 	print('Token Count: %s' % token_count)
 	print('Data usage: %s KiB' % (var_to_bytes(token_stream).size()/1000.0))
 	print('Parsing time: %s msec' % (Time.get_ticks_msec() - timer))
+
+func join_case(line: Array) -> void:
+	if (line[0] as RawToken).type != TokenType.Case:
+		return
+
+	var case: CaseToken = CaseToken.new()
+	case.case = line[1]
+	line.remove_at(1)
+	line[0] = case
 
 func split_lines() -> void:
 	var lines: Array = []
@@ -215,6 +229,7 @@ func scan_keywords() -> void:
 			'Else': token.type = TokenType.Else
 			'EndIf': token.type = TokenType.EndIf
 			'End': token.type = TokenType.End
+			'Return': token.type = TokenType.Return
 			'(': token.type = TokenType.OpenParenthesis
 			')': token.type = TokenType.CloseParenthesis
 			'\\': token.type = TokenType.Pointer
@@ -251,6 +266,7 @@ func scan_keywords() -> void:
 			'For': token.type = TokenType.For
 			'Next': token.type = TokenType.Next
 			'Exit': token.type = TokenType.Break
+			'Case': token.type = TokenType.Case
 
 			_:
 				continue
@@ -429,6 +445,12 @@ class FuncSigToken:
 	func _to_string() -> String:
 		return '<funcsig name: %s, params: %s>' % [name, params]
 
+class CaseToken extends RawToken:
+	var case: RawToken
+
+	func _to_string() -> String:
+		return '<case pattern: %s>' % case
+
 class ParameterToken extends RawToken:
 	var name: String
 	var data_type: String
@@ -479,5 +501,7 @@ class Token extends RawToken:
 			TokenType.Default: return '<default>'
 			TokenType.New: return '<new>'
 			TokenType.InitObj: return '<init type: %s>' % value
+			TokenType.Return: return '<return>'
+			TokenType.Case: return '<case>'
 
 		return '<%s, %s>' % ['cisny'[type], value if value != '\n' else 'N']
