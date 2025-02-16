@@ -12,6 +12,8 @@ enum TokenType {
 	NumericValue,
 	Symbol,
 	For,
+	To,
+	Step,
 	Next,
 	Function,
 	While,
@@ -48,7 +50,8 @@ enum TokenType {
 	Literal,
 	OpenBracket,
 	ClosedBracket,
-	FuncCall
+	FuncCall,
+	ArrayAccess
 }
 
 func _run() -> void:
@@ -348,6 +351,9 @@ func get_container(type: ContainerType, line: Array, position: int) -> void:
 			if position < line.size():
 				line.remove_at(position)
 
+			if type == ContainerType.Bracket:
+				join_array_access(line)
+
 		cursor += 1
 
 func scan_keywords() -> void:
@@ -423,6 +429,8 @@ func scan_keywords() -> void:
 			'Local': token.type = TokenType.Local
 			'Select': token.type = TokenType.Select
 			'For': token.type = TokenType.For
+			'To': token.type = TokenType.To
+			'Step': token.type = TokenType.Step
 			'Next': token.type = TokenType.Next
 			'Exit': token.type = TokenType.Break
 			'Case': token.type = TokenType.Case
@@ -431,6 +439,30 @@ func scan_keywords() -> void:
 				continue
 
 		token.value = ''
+
+func join_array_access(line: Array) -> void:
+	var cursor: int = -1
+
+	while true:
+		cursor += 1
+		if cursor == line.size():
+			break
+
+		var cont: TokenContainer = line[cursor] as TokenContainer
+		if !cont or cont.container_type != ContainerType.Bracket:
+			continue
+
+		var ident: Token = line[cursor - 1] as Token
+		if !ident or ident.type != TokenType.Identifier:
+			continue
+
+		cursor -= 1
+		var arr: ArrayToken = ArrayToken.new()
+		arr.ident = ident.value
+		arr.index = cont.content
+		arr.type = TokenType.ArrayAccess
+		line[cursor] = arr
+		line.remove_at(cursor + 1)
 
 func join_func_calls(line: Array) -> void:
 	var cursor: int = 0
@@ -633,6 +665,13 @@ class ContainerSide extends RawToken:
 	func _to_string() -> String:
 		return '<%s>' % ['()', '[]', '{}'][container_type][int(!is_open)]
 
+class ArrayToken extends RawToken:
+	var ident: StringName
+	var index: Array
+
+	func _to_string() -> String:
+		return '<array name: %s, index: %s>' % [ident, index]
+
 class FuncCallToken extends RawToken:
 	var function: StringName
 	var args: Array
@@ -711,6 +750,8 @@ class Token extends RawToken:
 			TokenType.NumericValue: return '<%s>' % value
 			TokenType.Function: return '<func>'
 			TokenType.For: return '<for>'
+			TokenType.To: return '<to>'
+			TokenType.Step: return '<step>'
 			TokenType.While: return '<while>'
 			TokenType.NewLine: return '<nl>'
 			TokenType.If: return '<if>'
@@ -739,8 +780,8 @@ class Token extends RawToken:
 			TokenType.InitObj: return '<init type: %s>' % value
 			TokenType.Return: return '<return>'
 			TokenType.Case: return '<case>'
-			TokenType.LessThan: return '<<>'
-			TokenType.GreaterThan: return '<>>'
+			TokenType.LessThan: return '<lt>'
+			TokenType.GreaterThan: return '<gt>'
 			TokenType.NotEqual: return '<!=>'
 			TokenType.EndSelect: return '<endselect>'
 
