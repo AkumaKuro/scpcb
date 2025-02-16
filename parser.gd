@@ -47,7 +47,8 @@ enum TokenType {
 	NotEqual,
 	Literal,
 	OpenBracket,
-	ClosedBracket
+	ClosedBracket,
+	FuncCall
 }
 
 func _run() -> void:
@@ -123,6 +124,8 @@ func _run() -> void:
 			join_ne(line)
 		if contains_type(line, &"ContainerSide"):
 			join_containers(line)
+		if contains_type(line, &"TokenContainer"):
+			join_func_calls(line)
 
 		token_count += line.size()
 		print(line)
@@ -347,7 +350,6 @@ func get_container(type: ContainerType, line: Array, position: int) -> void:
 
 		cursor += 1
 
-
 func scan_keywords() -> void:
 	var cursor: int = -1
 	while true:
@@ -429,6 +431,30 @@ func scan_keywords() -> void:
 				continue
 
 		token.value = ''
+
+func join_func_calls(line: Array) -> void:
+	var cursor: int = 0
+
+	while true:
+		cursor += 1
+		if cursor == line.size():
+			break
+
+		var cont: TokenContainer = line[cursor] as TokenContainer
+		if !cont or cont.container_type != ContainerType.Parenthesis:
+			continue
+
+		var ident: Token = line[cursor - 1] as Token
+		if !ident or ident.type != TokenType.Identifier:
+			continue
+
+		cursor -= 1
+		var call: FuncCallToken = FuncCallToken.new()
+		call.function = ident.value
+		call.args = cont.content
+		call.type = TokenType.FuncCall
+		line[cursor] = call
+		line.remove_at(cursor + 1)
 
 func join_endfunc(line: Array) -> void:
 	join_end(line, TokenType.Function, TokenType.EndFunc)
@@ -606,6 +632,13 @@ class ContainerSide extends RawToken:
 
 	func _to_string() -> String:
 		return '<%s>' % ['()', '[]', '{}'][container_type][int(!is_open)]
+
+class FuncCallToken extends RawToken:
+	var function: StringName
+	var args: Array
+
+	func _to_string() -> String:
+		return '<call func: %s, args: %s>' % [function, args]
 
 class TokenContainer extends RawToken:
 	static var containers: Array[TokenContainer] = []
