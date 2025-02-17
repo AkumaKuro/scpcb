@@ -132,10 +132,9 @@ func _run() -> void:
 
 		token_count += line.size()
 		print(line)
+		print()
 
 	print()
-	#for container: TokenContainer in TokenContainer.containers:
-	#	print(container)
 
 	print('Token Count: %s' % token_count)
 	print('Data usage: %s KiB' % (var_to_bytes(token_stream).size()/1000.0))
@@ -487,6 +486,7 @@ func join_func_calls(line: Array) -> void:
 		call.type = TokenType.FuncCall
 		line[cursor] = call
 		line.remove_at(cursor + 1)
+		join_func_calls(call.args)
 
 func join_endfunc(line: Array) -> void:
 	join_end(line, TokenType.Function, TokenType.EndFunc)
